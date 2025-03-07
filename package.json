@@ -5,6 +5,8 @@
     "canvas": "^3.1.0",
     "chart.js": "^4.4.8",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "node-localstorage": "^3.0.5",
+    "xlsx": "^0.18.5"
   }
 }
