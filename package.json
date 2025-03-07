@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
     "asciichart": "^1.5.25",
