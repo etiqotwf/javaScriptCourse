@@ -92,7 +92,7 @@ async function loadModel() {
 
 /**
  * دالة لإنشاء نموذج الشبكات العصبية الاصطناعية باستخدام TensorFlow.js
- * يقوم هذا النموذج بتوقع الأسعار بناءً على 4 مدخلات
+ * يقوم هذا النموذج بتوقع الأسعار بناءً على 5 مدخلات
  */
 function createModel() {
     const model = tf.sequential(); // إنشاء نموذج تسلسلي (Sequential)
@@ -101,7 +101,7 @@ function createModel() {
     model.add(tf.layers.dense({ 
         units: 10,               // عدد الخلايا العصبية في الطبقة
         activation: 'relu',      // استخدام دالة التنشيط ReLU لتحسين أداء النموذج
-        inputShape: [4]          // تحديد عدد المدخلات (4 ميزات لكل بيانات)
+        inputShape: [5]          // تحديد عدد المدخلات (5 ميزات لكل بيانات)
     }));
 
     // إضافة الطبقة الأخيرة، وهي طبقة خرج تحتوي على خلية عصبية واحدة
@@ -122,27 +122,24 @@ function createModel() {
 }
 
 /**
- * دالة لتدريب النموذج العصبي باستخدام بيانات الإدخال والمخرجات
+ * دالة لتدريب النموذج العصبي باستخدام بيانات تصاريح البناء على المجاري المائية
  * @param {tf.LayersModel} model - النموذج الذي سيتم تدريبه
  * @returns {Object} - القيم الدنيا والعليا للمدخلات والمخرجات لاستخدامها في إزالة التطبيع لاحقًا
  */
 async function trainModel(model) {
-    console.log("🏋️ Training the model with more data...");
+    console.log("🏗️ Training the model with permit data...");
 
-    // بيانات الإدخال (المساحة بالمتر، عدد الغرف، عدد الحمامات، عمر العقار)
+    // بيانات الإدخال (المساحة المطلوبة، نوع البناء، عدد الطوابق، مدة التصريح، المسافة عن المجرى المائي)
     const rawXs = [
-        [120, 3, 2, 15], [200, 4, 3, 5], [150, 3, 2, 10], [180, 4, 3, 8],
-        [250, 5, 4, 3], [90, 2, 1, 20], [300, 6, 5, 2], [170, 3, 2, 12],
-        [220, 4, 3, 6], [140, 3, 2, 18], [190, 4, 3, 7], [280, 5, 4, 4],
-        [100, 2, 1, 25], [320, 6, 5, 1], [260, 5, 4, 2]
+        [500, 1, 3, 5, 20], [1000, 2, 5, 10, 50], [700, 1, 4, 7, 30],
+        [1200, 3, 6, 12, 60], [800, 2, 3, 6, 25], [600, 1, 2, 4, 15],
+        [1500, 3, 7, 15, 80], [400, 1, 2, 3, 10], [900, 2, 4, 8, 35]
     ];
 
-    // الأسعار الفعلية للعقارات (المخرجات)
+    // الرسوم المطلوبة لإصدار التصريح (المخرجات)
     const rawYs = [
-        [500000], [800000], [600000], [750000],
-        [1200000], [300000], [1500000], [700000],
-        [950000], [550000], [850000], [1300000],
-        [250000], [1700000], [1400000]
+        [50000], [120000], [70000], [150000], [85000],
+        [60000], [200000], [45000], [95000]
     ];
 
     // استخراج القيم الدنيا والعليا لتطبيع البيانات
@@ -151,16 +148,16 @@ async function trainModel(model) {
     const minOutput = Math.min(...rawYs.flat());
     const maxOutput = Math.max(...rawYs.flat());
 
-    // تحويل البيانات إلى شكل قابل للاستخدام في TensorFlow
-    const xs = tf.tensor2d(normalizeData(rawXs.flat(), minInput, maxInput), [rawXs.length, 4]);
+    // تحويل البيانات إلى شكل TensorFlow
+    const xs = tf.tensor2d(normalizeData(rawXs.flat(), minInput, maxInput), [rawXs.length, 5]);
     const ys = tf.tensor2d(normalizeData(rawYs.flat(), minOutput, maxOutput), [rawYs.length, 1]);
 
-    // تدريب النموذج لعدد أكبر من الدورات لزيادة دقته
+    // تدريب النموذج
     await model.fit(xs, ys, { epochs: 500 });
 
-    console.log("✅ Training completed with more data!");
+    console.log("✅ Training completed for permit data!");
 
-    // حفظ النموذج بعد التدريب لاستخدامه لاحقًا
+    // حفظ النموذج بعد التدريب
     await saveModel(model);
 
     return { minInput, maxInput, minOutput, maxOutput };
@@ -168,65 +165,105 @@ async function trainModel(model) {
 
 /**
  * دالة لطلب المدخلات من المستخدم عبر سطر الأوامر
- * يقوم المستخدم بإدخال معلومات عن العقار مثل المساحة وعدد الغرف والحمامات والعمر
  * @returns {Promise<number[]>} - مصفوفة تحتوي على المدخلات بعد تحويلها إلى أرقام
  */
 async function askUserForInputs() {
-    // إنشاء واجهة إدخال للإدخال والإخراج عبر سطر الأوامر
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-    // دالة مساعدة لطرح الأسئلة على المستخدم وانتظار إدخال الإجابة
     function askQuestion(question) {
         return new Promise(resolve => rl.question(question, resolve));
     }
 
-    // طلب إدخال البيانات من المستخدم
-    const area = await askQuestion("📏 Enter house area (square meters): ");  // المساحة بالمتر المربع
-    const rooms = await askQuestion("🛏️ Enter number of rooms: ");           // عدد الغرف
-    const bathrooms = await askQuestion("🚿 Enter number of bathrooms: ");    // عدد الحمامات
-    const age = await askQuestion("📅 Enter house age (years): ");            // عمر العقار بالسنوات
+    // طلب إدخال البيانات المتعلقة بالتصريح
+    const area = await askQuestion("📏 Enter required construction area (square meters): ");
+    const type = await askQuestion("🏠 Enter building type (1: Residential, 2: Pump Station, 3: Bridge): ");
+    const floors = await askQuestion("🏢 Enter number of allowed floors: ");
+    const duration = await askQuestion("📅 Enter permit duration (years): ");
+    const distance = await askQuestion("🌊 Enter distance from nearest waterway (meters): ");
 
-    // إغلاق واجهة الإدخال بعد الانتهاء من جمع البيانات
     rl.close();
-
-    // تحويل البيانات المدخلة إلى أرقام وإرجاعها كمصفوفة
-    return [parseFloat(area), parseInt(rooms), parseInt(bathrooms), parseInt(age)];
+    return [parseFloat(area), parseInt(type), parseInt(floors), parseInt(duration), parseInt(distance)];
 }
 
-/**
- * دالة لإنشاء رسم بياني يعرض بيانات العقار مع السعر المتوقع
- * @param {number[]} userInputs - المدخلات التي أدخلها المستخدم (المساحة، الغرف، الحمامات، العمر)
- * @param {number} priceUSD - السعر المتوقع بالدولار الأمريكي
- * @param {number} priceEGP - السعر المتوقع بالجنيه المصري
- */
-async function generateChart(userInputs, priceUSD, priceEGP) {
-    // تحديد أبعاد الرسم البياني
-    const width = 600, height = 400;
 
-    // إنشاء كائن الرسم (Canvas)
+
+async function generateChart(userInputs, permitFee) {
+    const width = 600, height = 400;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // إنشاء الرسم البياني باستخدام مكتبة Chart.js
+     // تحويل القيم الرقمية لنوع المبنى إلى نصوص واضحة بالعربية
+const buildingTypes = ["سكن", "محطة", "كوبري"];
+const buildingType = buildingTypes[userInputs[1] - 1] || "غير معروف"; // التأكد من التفسير الصحيح
+
+
     new Chart(ctx, {
-        type: 'bar', // نوع الرسم البياني: أعمدة
+        type: 'bar',
         data: {
-            labels: ['📏 Area', '🛏️ Rooms', '🚿 Bathrooms', '📅 Age'], // أسماء المحاور
+            labels: ['📏 المساحة (م²)', '🏠 نوع المبنى', '🏢 عدد الطوابق', '📅 المدة (سنوات)', '🌊 المسافة (م)'],
             datasets: [{
-                label: 'House Parameters', // اسم البيانات
-                data: userInputs, // القيم المدخلة من قبل المستخدم
-                backgroundColor: ['#36A2EB', '#FFCE56', '#4CAF50', '#FF6384'] // ألوان الأعمدة
+                label: 'معايير الترخيص',
+                data: userInputs,
+                backgroundColor: ['#36A2EB', '#FFCE56', '#4CAF50', '#FF6384', '#8E44AD']
             }]
         },
         options: {
-            responsive: false, // تعطيل استجابة الحجم التلقائي لضمان بقاء الرسم البياني بالحجم المطلوب
+            responsive: false,
             plugins: {
                 title: {
                     display: true,
-                    text: `Estimated House Price: $${priceUSD.toFixed(2)} (~ EGP ${priceEGP.toFixed(2)})` // عنوان الرسم البياني
+                    text: [
+                        '🌊 الترخيص بإقامة أعمال خاصة داخل الأملاك العامة ذات الصلة بالموارد المائية والري 🌊',
+                        `📊 المدخلات: مساحة ${userInputs[0]}م²، نوع ${buildingType}, طوابق ${userInputs[2]}, مدة ${userInputs[3]} سنوات، مسافة ${userInputs[4]}م`,
+                        `💰 التكلفة المقدرة للترخيص: $${Math.round(permitFee).toLocaleString()} 💰`
+                    ],
+                    font: { 
+                        size: 17, // العنوان الرئيسي
+                        weight: 'bold', 
+                        family: 'Arial'
+                    },
+                    color: 'white',
+                    padding: { top: 15, bottom: 15 }
                 },
-                legend: { display: false }, // إخفاء مفتاح البيانات
-                tooltip: { enabled: true }  // تفعيل تلميحات البيانات عند تمرير الفأرة
+                legend: { display: false },
+                tooltip: { enabled: true },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    color: 'white',
+                    font: { size: 14, weight: 'bold' },
+                    formatter: function(value) {
+                        return `$${Math.round(value).toLocaleString()}`;
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '📏 معايير البناء',
+                        color: 'white',
+                        font: { size: 18, weight: 'bold' } // 🔥 جعل الخط أثقل
+                    },
+                    ticks: { color: 'white', font: { weight: 'bold' } }, // 🔥 جعل الأرقام أثقل
+                    grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: '📊 القيم',
+                        color: 'white',
+                        font: { size: 18, weight: 'bold' } // 🔥 زيادة السمك
+                    },
+                    ticks: { 
+                        color: 'white',
+                        font: { weight: 'bold' }, // 🔥 زيادة سمك خط القيم
+                        beginAtZero: true,
+                        callback: function(value) {
+                            return `$${Math.round(value).toLocaleString()}`;
+                        }
+                    },
+                    grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                }
             }
         }
     });
@@ -234,15 +271,18 @@ async function generateChart(userInputs, priceUSD, priceEGP) {
     // تحويل الرسم البياني إلى صورة بصيغة PNG
     const buffer = canvas.toBuffer('image/png');
 
-    // حفظ الصورة في ملف محلي
-    await fs.writeFile(CHART_PATH, buffer);
-    console.log(`📊 Chart saved as ${CHART_PATH}`); // طباعة رسالة تفيد بحفظ الصورة
+    // Save the image as a local file
+await fs.writeFile(CHART_PATH, buffer);
+console.log(`📊 Chart saved as ${CHART_PATH}`);
 
     // فتح الصورة تلقائيًا بعد حفظها
     exec(`start ${CHART_PATH}`, (err) => {
-        if (err) console.error("⚠️ Failed to open the chart:", err);
+        if (err) console.error("⚠️ فشل في فتح الرسم البياني:", err);
     });
 }
+
+
+
 
 async function logToExcel(userInputs, priceUSD, priceEGP) {
     try {
@@ -252,44 +292,57 @@ async function logToExcel(userInputs, priceUSD, priceEGP) {
             const fileBuffer = await fs.readFile(EXCEL_PATH);
             workbook = XLSX.read(fileBuffer, { type: "buffer" });
         } catch {
-            // 📄 إذا لم يكن الملف موجودًا، نقوم بإنشاء ملف جديد وإضافة رأس الجدول
+            // 📄 إنشاء ملف جديد مع العناوين الجديدة بدون "Enter"
             workbook = XLSX.utils.book_new();
             const sheet = XLSX.utils.aoa_to_sheet([
-                ["📅 Date & Time", "📏 Area", "🛏️ Rooms", "🚿 Bathrooms", "📅 Age", "💲 Price (USD)", "💰 Price (EGP)"]
+                [
+                    "Date & Time",
+                    "Required construction area (square meters)",
+                    "Building type (1: Residential, 2: Pump Station, 3: Bridge)",
+                    "Number of allowed floors",
+                    "Permit duration (years)",
+                    "Distance from nearest waterway (meters)",
+                    "Estimated house price (USD)",
+                    "Estimated house price (EGP)"
+                ]
             ]);
-            XLSX.utils.book_append_sheet(workbook, sheet, "Operations");
+            XLSX.utils.book_append_sheet(workbook, sheet, "PermitData"); // تغيير اسم الورقة إلى "PermitData"
         }
 
-        // 📜 الحصول على الورقة التي تحتوي على البيانات
-        const sheet = workbook.Sheets["Operations"];
+        // 📜 الحصول على ورقة البيانات
+        const sheet = workbook.Sheets["PermitData"];
         
-        // 📝 إعداد صف البيانات الجديد الذي سيتم إضافته إلى Excel
+        // 📝 تجهيز صف البيانات الجديد
         const newRow = [
-            new Date().toLocaleString(), // 🕒 حفظ التاريخ والوقت الحالي
-            ...userInputs, // 📏 القيم التي أدخلها المستخدم: المساحة، عدد الغرف، عدد الحمامات، وعمر العقار
+            new Date().toISOString().replace("T", " ").slice(0, 19), // 🕒 التاريخ بصيغة إنجليزية YYYY-MM-DD HH:MM:SS
+            ...userInputs, // 📌 القيم المدخلة (5 قيم)
             priceUSD.toFixed(2), // 💲 السعر بالدولار
             priceEGP.toFixed(2)   // 💰 السعر بالجنيه المصري
         ];
 
-        // 📌 تحويل بيانات الورقة إلى مصفوفة JSON حتى نتمكن من تعديلها بسهولة
+        // 📌 تحويل ورقة البيانات إلى مصفوفة JSON لتحديثها
         const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        // ➕ إضافة الصف الجديد إلى البيانات الحالية
+        // ➕ إضافة الصف الجديد إلى البيانات
         sheetData.push(newRow);
 
-        // 🔄 تحويل البيانات مرة أخرى إلى ورقة عمل Excel
+        // 🔄 إعادة تحويل البيانات إلى ورقة عمل
         const newSheet = XLSX.utils.aoa_to_sheet(sheetData);
-        workbook.Sheets["Operations"] = newSheet;
+        workbook.Sheets["PermitData"] = newSheet;
 
-        // 💾 كتابة الملف بعد التحديث
+        // 💾 حفظ الملف بعد التحديث
         const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
         await fs.writeFile(EXCEL_PATH, excelBuffer);
 
-        console.log("✅ Operation logged in Excel!"); // ✅ تأكيد نجاح العملية
+        console.log("✅ Operation logged in Excel with new headers!"); // ✅ تأكيد نجاح العملية
     } catch (error) {
         console.error("⚠️ Error logging to Excel:", error); // ⚠️ طباعة الخطأ إن وجد
     }
 }
+
+
+
+
 
 // 🏠 تنفيذ البرنامج
 (async () => {
@@ -306,7 +359,7 @@ async function logToExcel(userInputs, priceUSD, priceEGP) {
 
     // 🔄 تطبيع المدخلات لتحضيرها للإدخال في النموذج
     const normalizedInputs = normalizeData(userInputs, limits.minInput, limits.maxInput);
-    const inputTensor = tf.tensor2d([normalizedInputs], [1, 4]);
+    const inputTensor = tf.tensor2d([normalizedInputs], [1, 5]);
 
     console.log("📊 Predicting house price...");
     const outputTensor = model.predict(inputTensor); // 📈 التنبؤ بالسعر باستخدام النموذج
